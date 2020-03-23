@@ -22,7 +22,7 @@ func markOk(ctx *exrouter.Context) {
 
 // Report an error
 func sendError(ctx *exrouter.Context, err error) error {
-	ctx.Reply("📛 ", err)
+	ctx.Reply("🛑 ", err)
 	return err
 }
 
