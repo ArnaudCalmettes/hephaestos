@@ -63,7 +63,6 @@ func findClosestPlayer(name string, players []models.Player) (best models.Player
 	score = len(name)
 	for _, p := range players {
 		d := levenshtein.DistanceForStrings([]rune(name), []rune(p.Name), levenshtein.DefaultOptions)
-		log.Printf("dist %v %v = %d", []rune(name), []rune(p.Name), d)
 		if d < score {
 			best = p
 			score = d
@@ -108,8 +107,8 @@ func readChampions(ctx *exrouter.Context) {
 			internalError(ctx, err)
 			return err
 		}
-		create := make([]*models.Champion, 0, 20)
-		update := make([]*models.Champion, 0, 20)
+		create := make([]models.Champion, 0, 20)
+		update := make([]models.Champion, 0, 20)
 
 		// Decide whether each detected champion should be created or updated
 		for _, c := range champs {
@@ -117,16 +116,19 @@ func readChampions(ctx *exrouter.Context) {
 
 			// Find the closest existing player according to name similarities
 			p, score := findClosestPlayer(c.Player.Name, players)
-			if score < len(c.Player.Name) {
+			log.Printf("Closest to %v is %v (%d) (score = %d)", c.Player.Name, p.Name, p.ID, score)
+			if score < len(p.Name) {
 				// The champion is a known player
 
 				// Is he already a champion?
 				tmp, err := models.FindChampion(tx, guild.ID, p.ID)
 				if err != nil {
+					log.Println("Creating new champion")
 					// Nope, create a new champion from this player
 					c.PlayerID, c.Player.Name = p.ID, ""
-					create = append(create, &c)
+					create = append(create, c)
 				} else {
+					log.Println("Updating existing champion with player_id", tmp.PlayerID)
 					// Yep, update the champion's characteristics
 					tmp.HeroPower = c.HeroPower
 					tmp.TitanPower = c.TitanPower
@@ -136,7 +138,7 @@ func readChampions(ctx *exrouter.Context) {
 			} else {
 				// The player doesn't exist yet: associate him to the guild.
 				c.Player.GuildID = guild.ID
-				create = append(create, &c)
+				create = append(create, c)
 			}
 		}
 

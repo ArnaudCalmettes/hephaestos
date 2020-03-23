@@ -51,9 +51,8 @@ func (a ByTitanPower) Less(i, j int) bool {
 }
 
 // FindChampion finds a champion given its GuildID and PlayerID
-func FindChampion(db *gorm.DB, guildID string, playerID uint) (*Champion, error) {
-	c := &Champion{}
-	err := db.Where("guild_id = ?", guildID).Where("player_id", playerID).First(c).Error
-
+func FindChampion(db *gorm.DB, guildID string, playerID uint) (Champion, error) {
+	c := Champion{}
+	err := db.Where(&Champion{GuildID: guildID, PlayerID: playerID}).First(&c).Error
 	return c, err
 }

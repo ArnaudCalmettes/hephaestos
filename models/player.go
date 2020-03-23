@@ -18,10 +18,10 @@ func ListPlayers(db *gorm.DB, guildID string) (players []Player, err error) {
 }
 
 // FindPlayer finds a player from his Name and GuildID
-func FindPlayer(db *gorm.DB, guildID string, name string) (*Player, error) {
+func FindPlayer(db *gorm.DB, guildID string, name string) (Player, error) {
 	p := Player{}
-	err := db.Where("guild_id = ?", guildID).Where("name = ?", name).First(&p).Error
-	return &p, err
+	err := db.Where(&Player{GuildID: guildID, Name: name}).First(&p).Error
+	return p, err
 }
 
 // Delete deletes current player from the DB
