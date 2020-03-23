@@ -126,7 +126,7 @@ func readChampions(ctx *exrouter.Context) {
 
 			// Find the closest existing player according to name similarities
 			p, score := findClosestPlayer(c.Player.Name, players)
-			log.Printf("Closest to %v is %v (%d) (score = %d)", c.Player.Name, p.Name, p.ID, score)
+			// log.Printf("Closest to %v is %v (%d) (score = %d)", c.Player.Name, p.Name, p.ID, score)
 			if score < len(p.Name) {
 				// The champion is more likely a known player
 
@@ -179,10 +179,14 @@ func readChampions(ctx *exrouter.Context) {
 		}
 
 		if len(create) > 0 {
-			sendInfo(ctx, "New champions: ", strings.Join(create, ", "))
+			sendInfo(ctx, "Created ", len(create), " champions:\n* ",
+				strings.Join(create, "\n* "),
+			)
 		}
 		if len(update) > 0 {
-			sendInfo(ctx, "Updated champions: ", strings.Join(update, ", "))
+			sendInfo(ctx, "Updated ", len(update), " champions:\n* ",
+				strings.Join(update, "\n* "),
+			)
 		}
 		return nil
 	})
