@@ -72,6 +72,7 @@ func Run() {
 			r.Use(dbMiddleware(db))
 			r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
 			r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
+			r.On("set", setChampion).Desc("manually set a champion")
 			r.On("remove", removeChampion).Desc("remove a champion (aliases: [rm])").Alias("rm")
 		}).Desc("handle champions (aliases: [champion champs champ c])").Alias("champion", "champs", "champ", "c")
 	})

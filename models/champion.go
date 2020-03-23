@@ -29,7 +29,9 @@ func (c *Champion) Create(db *gorm.DB) error {
 
 // Update updates a champion in the DB
 func (c *Champion) Update(db *gorm.DB) error {
-	return db.Table("champions").Where("player_id = ?", c.PlayerID).Updates(*c).Error
+	c.Player = Player{}
+	c.Guild = Guild{}
+	return db.Table("champions").Where("player_id = ? AND guild_id = ?", c.PlayerID, c.GuildID).Updates(*c).Error
 }
 
 // Delete deletes current champion from the DB
@@ -54,5 +56,14 @@ func (a ByTitanPower) Less(i, j int) bool {
 func FindChampion(db *gorm.DB, guildID string, playerID uint) (Champion, error) {
 	c := Champion{}
 	err := db.Where(&Champion{GuildID: guildID, PlayerID: playerID}).First(&c).Error
+	if err != nil {
+		return c, err
+	}
+	err = db.Where("id = ?", playerID).First(&c.Player).Error
 	return c, err
+}
+
+// UpdateSeemsLegit checks that the an update wouldn't make the champion weaker
+func (cOld *Champion) UpdateSeemsLegit(cNew *Champion) bool {
+	return cOld.HeroPower <= cNew.HeroPower && cOld.TitanPower <= cNew.TitanPower && cOld.SuperTitans <= cNew.SuperTitans
 }

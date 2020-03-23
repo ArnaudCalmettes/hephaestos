@@ -4,7 +4,6 @@ import (
 	"github.com/ArnaudCalmettes/hephaestos/models"
 	"github.com/Necroforger/dgrouter/exrouter"
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
 func createGuild(ctx *exrouter.Context) error {

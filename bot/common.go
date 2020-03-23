@@ -21,8 +21,9 @@ func markOk(ctx *exrouter.Context) {
 }
 
 // Report an error
-func sendError(ctx *exrouter.Context, err error) {
+func sendError(ctx *exrouter.Context, err error) error {
 	ctx.Reply("📛 ", err)
+	return err
 }
 
 // Report an information
@@ -36,8 +37,8 @@ func sendWarning(ctx *exrouter.Context, args ...interface{}) {
 }
 
 // Report an internal error
-func internalError(ctx *exrouter.Context, err error) {
-	sendError(ctx, fmt.Errorf("Internal error (`%w`)", err))
+func internalError(ctx *exrouter.Context, err error) error {
+	return sendError(ctx, fmt.Errorf("Internal error (`%w`)", err))
 }
 
 // Send correct command syntax

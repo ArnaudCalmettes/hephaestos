@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -104,11 +105,10 @@ func readChampions(ctx *exrouter.Context) {
 		guild, _ := ctx.Guild(ctx.Msg.GuildID)
 		players, err := models.ListPlayers(tx, guild.ID)
 		if err != nil {
-			internalError(ctx, err)
-			return err
+			return internalError(ctx, err)
 		}
-		create := make([]models.Champion, 0, 20)
-		update := make([]models.Champion, 0, 20)
+		create := make([]string, 0, 20)
+		update := make([]string, 0, 20)
 
 		// Decide whether each detected champion should be created or updated
 		for _, c := range champs {
@@ -118,50 +118,61 @@ func readChampions(ctx *exrouter.Context) {
 			p, score := findClosestPlayer(c.Player.Name, players)
 			log.Printf("Closest to %v is %v (%d) (score = %d)", c.Player.Name, p.Name, p.ID, score)
 			if score < len(p.Name) {
-				// The champion is a known player
+				// The champion is more likely a known player
 
 				// Is he already a champion?
 				tmp, err := models.FindChampion(tx, guild.ID, p.ID)
 				if err != nil {
-					log.Println("Creating new champion")
 					// Nope, create a new champion from this player
+					log.Println("Creating new champion: ", c)
 					c.PlayerID, c.Player.Name = p.ID, ""
-					create = append(create, c)
+					if err := c.Create(tx); err != nil {
+						return internalError(ctx, err)
+					}
+					create = append(create, p.Name)
 				} else {
-					log.Println("Updating existing champion with player_id", tmp.PlayerID)
-					// Yep, update the champion's characteristics
+					// Yep, check that this update isn't suspicious
+					if !tmp.UpdateSeemsLegit(&c) {
+						// If anything's fishy, instruct the user to perform a
+						// manual update.
+						sendWarning(ctx,
+							fmt.Sprintf("Suspicious update:\n`%v -> %v`\n", tmp, c),
+							fmt.Sprintf(
+								"Use `c set %s %d %d %d` to do it manually",
+								c.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans,
+							),
+						)
+						continue
+					}
+
+					// Perform the actual update
 					tmp.HeroPower = c.HeroPower
 					tmp.TitanPower = c.TitanPower
 					tmp.SuperTitans = c.SuperTitans
-					update = append(update, tmp)
+
+					log.Println("Updating existing champion: ", tmp)
+
+					if err := tmp.Update(tx); err != nil {
+						return internalError(ctx, err)
+					}
+					update = append(update, p.Name)
 				}
 			} else {
 				// The player doesn't exist yet: associate him to the guild.
 				c.Player.GuildID = guild.ID
-				create = append(create, c)
-			}
-		}
-
-		// Create new champions (and players if needed)
-		for _, c := range create {
-			if err := c.Create(tx); err != nil {
-				internalError(ctx, err)
-				return err
-			}
-		}
-		// Update existing champions
-		for _, c := range update {
-			if err := c.Update(tx); err != nil {
-				internalError(ctx, err)
-				return err
+				log.Println("Creating new champion: ", c)
+				if err := c.Create(tx); err != nil {
+					return internalError(ctx, err)
+				}
+				create = append(create, c.Player.Name)
 			}
 		}
 
 		if len(create) > 0 {
-			sendInfo(ctx, "Created ", len(create), " champion(s)")
+			sendInfo(ctx, "New champions: ", strings.Join(create, ", "))
 		}
 		if len(update) > 0 {
-			sendInfo(ctx, "Updated ", len(update), " champions(s)")
+			sendInfo(ctx, "Updated champions: ", strings.Join(update, ", "))
 		}
 		return nil
 	})
@@ -177,18 +188,96 @@ func removeChampion(ctx *exrouter.Context) {
 	transaction(ctx, func(tx *gorm.DB) error {
 		p, err := models.FindPlayer(tx, ctx.Msg.GuildID, playerName)
 		if err == gorm.ErrRecordNotFound {
-			sendError(ctx, errors.New("No such user"))
-			return err
+			return sendError(ctx, errors.New("No such user"))
 		} else if err != nil {
-			internalError(ctx, err)
-			return err
+			return internalError(ctx, err)
 		}
 		c := models.Champion{PlayerID: p.ID}
 		if err := c.Delete(tx); err != nil {
-			internalError(ctx, err)
-			return err
+			return internalError(ctx, err)
 		}
 		markOk(ctx)
 		return nil
 	})
+}
+
+func setChampion(ctx *exrouter.Context) {
+	if len(ctx.Args) != 5 {
+		sendUsage(ctx, "<name> <heroes> <titans> <super titans>")
+		return
+	}
+
+	var err error
+	name := ctx.Args[1]
+	update := models.Champion{}
+
+	// Parse hero power
+	if ctx.Args[2] != "*" {
+		update.HeroPower, err = strconv.Atoi(ctx.Args[2])
+		if err != nil {
+			markPoop(ctx)
+			sendError(ctx, errors.New("Hero power must be an integer (or `*` to leave unchanged)"))
+			return
+		}
+	}
+
+	// Parse titan power
+	if ctx.Args[3] != "*" {
+		update.TitanPower, err = strconv.Atoi(ctx.Args[3])
+		if err != nil {
+			markPoop(ctx)
+			sendError(ctx, errors.New("Titan power must be an integer (or `*` to leave unchanged)"))
+			return
+		}
+	}
+
+	// Parse super titans
+	if ctx.Args[4] != "*" {
+		update.SuperTitans, err = strconv.Atoi(ctx.Args[4])
+		if err != nil {
+			markPoop(ctx)
+			sendError(ctx, errors.New("Number of super titans must be an integer (or `*` to leave unchanged)"))
+			return
+		}
+	}
+
+	err = transaction(ctx, func(tx *gorm.DB) error {
+		p, err := models.FindPlayer(tx, ctx.Msg.GuildID, name)
+		if err == gorm.ErrRecordNotFound {
+			markPoop(ctx)
+			return sendError(ctx, fmt.Errorf("No such player (%v)", name))
+		}
+		if err != nil {
+			return internalError(ctx, err)
+		}
+
+		tmp, err := models.FindChampion(tx, p.GuildID, p.ID)
+		if err == nil {
+			// Update champion
+			if update.HeroPower > 0 {
+				tmp.HeroPower = update.HeroPower
+			}
+			if update.TitanPower > 0 {
+				tmp.TitanPower = update.TitanPower
+			}
+			if update.SuperTitans > 0 {
+				tmp.SuperTitans = update.SuperTitans
+			}
+			if err = tmp.Update(tx); err != nil {
+				return internalError(ctx, err)
+			}
+		} else if err == gorm.ErrRecordNotFound {
+			update.GuildID, update.PlayerID = p.GuildID, p.ID
+			if err = update.Create(tx); err != nil {
+				return internalError(ctx, err)
+			}
+		} else {
+			return internalError(ctx, err)
+		}
+		return nil
+	})
+	if err == nil {
+		markOk(ctx)
+	}
+
 }
