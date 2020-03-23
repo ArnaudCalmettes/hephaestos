@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"bytes"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"log"
@@ -19,13 +21,17 @@ import (
 	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
-// List currently recorded champions
-func listChampions(ctx *exrouter.Context) {
+var errInvalidArgs = errors.New("Invalid arguments")
+var errEmptyResult = errors.New("Nothing to get")
+
+// Utility function to get the list of champions
+func getChampions(ctx *exrouter.Context) (champs []models.Champion, err error) {
 	order := "by_titans"
 	if len(ctx.Args) == 2 {
 		order = ctx.Args[1]
 		if order != "by_titans" && order != "by_heroes" {
 			sendUsage(ctx, "[by_heroes|by_titans]")
+			err = errInvalidArgs
 			return
 		}
 	} else if len(ctx.Args) > 2 {
@@ -33,19 +39,17 @@ func listChampions(ctx *exrouter.Context) {
 		return
 	}
 
-	var champs []models.Champion
-	err := transaction(ctx, func(tx *gorm.DB) error {
-		err := tx.Where("guild_id = ?", ctx.Msg.GuildID).Preload("Player").Find(&champs).Error
+	err = transaction(ctx, func(tx *gorm.DB) error {
+		err := tx.Set("gorm:auto_preload", true).Where("guild_id = ?", ctx.Msg.GuildID).Find(&champs).Error
 		if err != nil {
 			internalError(ctx, err)
 		}
 		return err
 	})
-	if err != nil {
-		return
-	}
+
 	if len(champs) == 0 {
 		sendWarning(ctx, "The guild doesn't have any champions yet. Use `champions read` to set them.")
+		err = errEmptyResult
 		return
 	}
 
@@ -54,6 +58,15 @@ func listChampions(ctx *exrouter.Context) {
 		sort.Sort(sort.Reverse(models.ByTitanPower(champs)))
 	case "by_heroes":
 		sort.Sort(sort.Reverse(models.ByHeroPower(champs)))
+	}
+	return
+}
+
+// List currently recorded champions
+func listChampions(ctx *exrouter.Context) {
+	champs, err := getChampions(ctx)
+	if err != nil {
+		return
 	}
 
 	var b strings.Builder
@@ -68,6 +81,33 @@ func listChampions(ctx *exrouter.Context) {
 	if len(champs) != 15 && len(champs) != 20 {
 		sendWarning(ctx, "There are currently ", len(champs), " champions (not 15 or 20).")
 	}
+}
+
+// Export current champion list as a csv file
+func exportChampions(ctx *exrouter.Context) {
+	champs, err := getChampions(ctx)
+	if err != nil {
+		return
+	}
+
+	var b bytes.Buffer
+	w := csv.NewWriter(&b)
+	w.Write([]string{"Name", "Heroes", "Titans", "ST"})
+	for _, c := range champs {
+		w.Write([]string{
+			c.Player.Name,
+			strconv.Itoa(c.HeroPower),
+			strconv.Itoa(c.TitanPower),
+			strconv.Itoa(c.SuperTitans),
+		})
+	}
+	w.Flush()
+
+	ctx.Ses.ChannelFileSend(
+		ctx.Msg.ChannelID,
+		fmt.Sprintf("%s champions.csv", champs[0].Guild.Name),
+		&b,
+	)
 }
 
 func findClosestPlayer(name string, players []models.Player) (best models.Player, score int) {

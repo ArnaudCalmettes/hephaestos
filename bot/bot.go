@@ -70,6 +70,7 @@ func Run() {
 	router.On("champions", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
 		r.Use(dbMiddleware(db))
 		r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
+		r.On("export", exportChampions).Desc("export champions to a csv file")
 		r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
 		r.On("set", setChampion).Desc("manually set a champion")
 		r.On("remove", removeChampion).Desc("remove a champion (aliases: [rm])").Alias("rm")
