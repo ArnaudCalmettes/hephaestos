@@ -59,7 +59,7 @@ func Run() {
 
 	router := exrouter.New()
 
-	router.On("players", nil).Group(func(r *exrouter.Route) {
+	router.On("players", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
 		r.Use(dbMiddleware(db))
 		r.On("list", listPlayers).Desc("list known players (aliases: [ls])").Alias("ls")
 		r.On("rename", renamePlayer).Desc("rename a player")
@@ -67,7 +67,7 @@ func Run() {
 		r.On("remove", removePlayer).Desc("delete a player (aliases: [rm])").Alias("rm")
 	}).Desc("handle players of the guild (aliases: [player p])").Alias("player", "p")
 
-	router.On("champions", nil).Group(func(r *exrouter.Route) {
+	router.On("champions", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
 		r.Use(dbMiddleware(db))
 		r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
 		r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
