@@ -21,15 +21,21 @@ import (
 
 // List currently recorded champions
 func listChampions(ctx *exrouter.Context) {
-	guild, err := ctx.Guild(ctx.Msg.GuildID)
-	if err != nil {
-		internalError(ctx, err)
+	order := "by_titans"
+	if len(ctx.Args) == 2 {
+		order = ctx.Args[1]
+		if order != "by_titans" && order != "by_heroes" {
+			sendUsage(ctx, "[by_heroes|by_titans]")
+			return
+		}
+	} else if len(ctx.Args) > 2 {
+		sendUsage(ctx, "[by_heroes|by_titans]")
 		return
 	}
 
 	var champs []models.Champion
-	err = transaction(ctx, func(tx *gorm.DB) error {
-		err := tx.Where("guild_id = ?", guild.ID).Preload("Player").Find(&champs).Error
+	err := transaction(ctx, func(tx *gorm.DB) error {
+		err := tx.Where("guild_id = ?", ctx.Msg.GuildID).Preload("Player").Find(&champs).Error
 		if err != nil {
 			internalError(ctx, err)
 		}
@@ -43,8 +49,12 @@ func listChampions(ctx *exrouter.Context) {
 		return
 	}
 
-	// Sort champions by titan (+ 20% rule) order
-	sort.Sort(sort.Reverse(models.ByTitanPower(champs)))
+	switch order {
+	case "by_titans":
+		sort.Sort(sort.Reverse(models.ByTitanPower(champs)))
+	case "by_heroes":
+		sort.Sort(sort.Reverse(models.ByHeroPower(champs)))
+	}
 
 	var b strings.Builder
 	w := tabwriter.NewWriter(&b, 5, 0, 3, ' ', 0)

@@ -52,6 +52,15 @@ func (a ByTitanPower) Less(i, j int) bool {
 	return pi < pj
 }
 
+// ByHeroPower allows to sort champions by hero power
+type ByHeroPower []Champion
+
+func (a ByHeroPower) Len() int      { return len(a) }
+func (a ByHeroPower) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByHeroPower) Less(i, j int) bool {
+	return a[i].HeroPower < a[j].HeroPower
+}
+
 // FindChampion finds a champion given its GuildID and PlayerID
 func FindChampion(db *gorm.DB, guildID string, playerID uint) (Champion, error) {
 	c := Champion{}
