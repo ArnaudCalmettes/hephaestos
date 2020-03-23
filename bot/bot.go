@@ -59,23 +59,21 @@ func Run() {
 
 	router := exrouter.New()
 
-	router.Group(func(r *exrouter.Route) {
-		r.On("players", nil).Group(func(r *exrouter.Route) {
-			r.Use(dbMiddleware(db))
-			r.On("list", listPlayers).Desc("list known players (aliases: [ls])").Alias("ls")
-			r.On("rename", renamePlayer).Desc("rename a player")
-			r.On("bind", bindPlayer).Desc("bind a player to a Discord user")
-			r.On("remove", removePlayer).Desc("delete a player (aliases: [rm])").Alias("rm")
-		}).Desc("handle players of the guild (aliases: [player p])").Alias("player", "p")
+	router.On("players", nil).Group(func(r *exrouter.Route) {
+		r.Use(dbMiddleware(db))
+		r.On("list", listPlayers).Desc("list known players (aliases: [ls])").Alias("ls")
+		r.On("rename", renamePlayer).Desc("rename a player")
+		r.On("bind", bindPlayer).Desc("bind a player to a Discord user")
+		r.On("remove", removePlayer).Desc("delete a player (aliases: [rm])").Alias("rm")
+	}).Desc("handle players of the guild (aliases: [player p])").Alias("player", "p")
 
-		r.On("champions", nil).Group(func(r *exrouter.Route) {
-			r.Use(dbMiddleware(db))
-			r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
-			r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
-			r.On("set", setChampion).Desc("manually set a champion")
-			r.On("remove", removeChampion).Desc("remove a champion (aliases: [rm])").Alias("rm")
-		}).Desc("handle champions (aliases: [champion champs champ c])").Alias("champion", "champs", "champ", "c")
-	})
+	router.On("champions", nil).Group(func(r *exrouter.Route) {
+		r.Use(dbMiddleware(db))
+		r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
+		r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
+		r.On("set", setChampion).Desc("manually set a champion")
+		r.On("remove", removeChampion).Desc("remove a champion (aliases: [rm])").Alias("rm")
+	}).Desc("handle champions (aliases: [champion champs champ c])").Alias("champion", "champs", "champ", "c")
 
 	router.Default = router.On("help", func(ctx *exrouter.Context) {
 		var f func(depth int, r *exrouter.Route) string
