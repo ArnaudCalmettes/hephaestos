@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -49,17 +48,12 @@ func renamePlayer(ctx *exrouter.Context) {
 	oldName := ctx.Args[1]
 	newName := ctx.Args[2]
 
-	db, _ := ctx.Get("db").(*gorm.DB)
-	if db == nil {
-		internalError(ctx, errNoDB)
-		return
-	}
-
-	db.Transaction(func(tx *gorm.DB) error {
+	err := transaction(ctx, func(tx *gorm.DB) error {
 		p := models.Player{}
 		if tx.Where("guild_id = ?", ctx.Msg.GuildID).Where("name = ?", oldName).First(&p).RecordNotFound() {
 			sendError(ctx, fmt.Errorf(`No such player ("%s")`, oldName))
-			return errors.New("no such user")
+			markPoop(ctx)
+			return gorm.ErrRecordNotFound
 		}
 		p.Name = newName
 		if err := tx.Table("players").Where("id = ?", p.ID).Updates(p).Error; err != nil {
@@ -68,8 +62,10 @@ func renamePlayer(ctx *exrouter.Context) {
 		}
 		return nil
 	})
+	if err == nil {
+		markOk(ctx)
+	}
 
-	markOk(ctx)
 }
 
 func bindPlayer(ctx *exrouter.Context) {
@@ -93,16 +89,11 @@ func bindPlayer(ctx *exrouter.Context) {
 		return
 	}
 
-	db, _ := ctx.Get("db").(*gorm.DB)
-	if db == nil {
-		internalError(ctx, errNoDB)
-		return
-	}
-
-	db.Transaction(func(tx *gorm.DB) error {
+	err := transaction(ctx, func(tx *gorm.DB) error {
 		p, err := models.FindPlayer(tx, ctx.Msg.GuildID, name)
 		if err == gorm.ErrRecordNotFound {
 			sendError(ctx, fmt.Errorf(`No such player ("%s")`, name))
+			markPoop(ctx)
 			return err
 		} else if err != nil {
 			internalError(ctx, err)
@@ -115,8 +106,10 @@ func bindPlayer(ctx *exrouter.Context) {
 		}
 		return nil
 	})
+	if err == nil {
+		markOk(ctx)
+	}
 
-	markOk(ctx)
 }
 
 func removePlayer(ctx *exrouter.Context) {
@@ -124,11 +117,13 @@ func removePlayer(ctx *exrouter.Context) {
 		sendUsage(ctx, "<name>")
 		return
 	}
+	name := ctx.Args[1]
 
-	transaction(ctx, func(tx *gorm.DB) error {
+	err := transaction(ctx, func(tx *gorm.DB) error {
 		p, err := models.FindPlayer(tx, ctx.Msg.GuildID, ctx.Args[1])
 		if err == gorm.ErrRecordNotFound {
-			sendError(ctx, errors.New("no such player"))
+			sendError(ctx, fmt.Errorf(`No such player ("%s")`, name))
+			markPoop(ctx)
 			return err
 		}
 		if err != nil {
@@ -140,8 +135,10 @@ func removePlayer(ctx *exrouter.Context) {
 			internalError(ctx, err)
 			return err
 		}
-		markOk(ctx)
 		return nil
 	})
+	if err == nil {
+		markOk(ctx)
+	}
 
 }

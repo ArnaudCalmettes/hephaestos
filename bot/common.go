@@ -49,7 +49,7 @@ func sendUsage(ctx *exrouter.Context, syntax string) {
 func getDB(ctx *exrouter.Context) (db *gorm.DB, err error) {
 	db, _ = ctx.Get("db").(*gorm.DB)
 	if db == nil {
-		err = errors.New("couldn't get DB")
+		err = errNoDB
 	}
 	return
 }
@@ -58,7 +58,7 @@ func getDB(ctx *exrouter.Context) (db *gorm.DB, err error) {
 func transaction(ctx *exrouter.Context, fn func(*gorm.DB) error) error {
 	db, err := getDB(ctx)
 	if err != nil {
-		internalError(ctx, errNoDB)
+		internalError(ctx, err)
 		return err
 	}
 	return db.Transaction(fn)
