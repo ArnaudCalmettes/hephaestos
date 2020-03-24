@@ -18,6 +18,7 @@ func createGuild(ctx *exrouter.Context) error {
 			g.ID = guild.ID
 			g.Name = guild.Name
 			if err := tx.Create(&g).Error; err != nil {
+				internalError(ctx, err)
 				return err
 			}
 			sendInfo(ctx, "This Discord server is now associated to guild **", g.Name, "**.")

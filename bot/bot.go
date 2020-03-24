@@ -21,23 +21,41 @@ func logMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
 	log.Printf("[%s/%s] %s: %s\n", guild.Name, channel.Name, m.Author.Username, m.Message.Content)
 }
 
+// Middleware that logs processed messages to stdout
+func logMiddleware(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
+	return func(ctx *exrouter.Context) {
+		guild, _ := ctx.Guild(ctx.Msg.GuildID)
+		channel, _ := ctx.Channel(ctx.Msg.ChannelID)
+		log.Printf("[%s/%s] %s: %s\n", guild.Name, channel.Name, ctx.Msg.Author.Username, ctx.Msg.Content)
+
+		if fn != nil {
+			fn(ctx)
+		}
+	}
+}
+
 // Middleware that adds the database to commands' context.
-// Upon first use, the Discord guild is automatically initialized in the
-// databse.
 func dbMiddleware(db *gorm.DB) exrouter.MiddlewareFunc {
 	return func(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
 		return func(ctx *exrouter.Context) {
 			ctx.Set("db", db)
-
-			// Initialize the guild in the DB if it doesn't exist yet
-			if err := createGuild(ctx); err != nil {
-				internalError(ctx, err)
-				return
-			}
-
 			if fn != nil {
 				fn(ctx)
 			}
+		}
+	}
+}
+
+// Middleware that ensures the Discord guild is associated to a guild in the DB
+func guildInitMiddleware(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
+	return func(ctx *exrouter.Context) {
+		// Initialize the guild in the DB if it doesn't exist yet
+		if err := createGuild(ctx); err != nil {
+			return
+		}
+
+		if fn != nil {
+			fn(ctx)
 		}
 	}
 }
@@ -60,7 +78,9 @@ func Run() {
 	router := exrouter.New()
 
 	router.On("players", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
+		r.Use(guildInitMiddleware)
 		r.Use(dbMiddleware(db))
+		r.Use(logMiddleware)
 		r.On("list", listPlayers).Desc("list known players (alias: ls)").Alias("ls")
 		r.On("rename", renamePlayer).Desc("rename a player")
 		r.On("bind", bindPlayer).Desc("bind a player to a Discord user")
@@ -68,7 +88,9 @@ func Run() {
 	}).Desc("handle players of the guild (alias: p)").Alias("p")
 
 	router.On("champions", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
+		r.Use(guildInitMiddleware)
 		r.Use(dbMiddleware(db))
+		r.Use(logMiddleware)
 		r.On("list", listChampions).Desc("list current champions (alias: ls)").Alias("ls")
 		r.On("export", exportChampions).Desc("export champions to a csv file")
 		r.On("update", readChampions).Desc("read & update champions from screenshots (alias: up)").Alias("up")
@@ -90,7 +112,6 @@ func Run() {
 	}).Desc("print this help menu (alias: h)").Alias("h")
 
 	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		logMsg(s, m)
 		router.FindAndExecute(s, ".", s.State.User.ID, m.Message)
 	})
 
