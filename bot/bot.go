@@ -87,7 +87,7 @@ func Run() {
 			return text
 		}
 		ctx.Reply("```" + f(0, router) + "```")
-	}).Desc("print this help menu (aliases: [h])").Alias("h")
+	}).Desc("print this help menu (alias: h)").Alias("h")
 
 	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		logMsg(s, m)
