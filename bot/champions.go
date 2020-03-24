@@ -188,7 +188,7 @@ func readChampions(ctx *exrouter.Context) {
 						sendWarning(ctx,
 							fmt.Sprintf("Suspicious update:\n`%v -> %v`\n", tmp, c),
 							fmt.Sprintf(
-								"Use `c set %s %d %d %d` to do it manually",
+								"Use `c set \"%s\" %d %d %d` to do it manually",
 								tmp.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans,
 							),
 						)
