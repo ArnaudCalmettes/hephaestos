@@ -123,8 +123,9 @@ func findClosestPlayer(name string, players []models.Player) (best models.Player
 }
 
 func readChampions(ctx *exrouter.Context) {
-	scanner := input.NewGuildChampionsScanner()
 
+	scanner := input.NewGuildChampionsScanner()
+	markInProgress(ctx)
 	for _, att := range ctx.Msg.Attachments {
 		log.Println("Downloading attachment", att.URL)
 		resp, err := http.Get(att.URL)
@@ -147,6 +148,7 @@ func readChampions(ctx *exrouter.Context) {
 
 	champs := scanner.Champions()
 	if len(champs) == 0 {
+		markDone(ctx)
 		markPoop(ctx)
 		return
 	}
@@ -230,6 +232,7 @@ func readChampions(ctx *exrouter.Context) {
 		}
 		return nil
 	})
+	markDone(ctx)
 }
 
 func removeChampion(ctx *exrouter.Context) {

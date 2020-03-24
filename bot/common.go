@@ -20,6 +20,16 @@ func markOk(ctx *exrouter.Context) {
 	ctx.Ses.MessageReactionAdd(ctx.Msg.ChannelID, ctx.Msg.ID, "👍")
 }
 
+// React with a hourglass (indicate a work in progress)
+func markInProgress(ctx *exrouter.Context) {
+	ctx.Ses.MessageReactionAdd(ctx.Msg.ChannelID, ctx.Msg.ID, "⏳")
+}
+
+// Remove hourglass (indicate the work is done)
+func markDone(ctx *exrouter.Context) {
+	ctx.Ses.MessageReactionRemove(ctx.Msg.ChannelID, ctx.Msg.ID, "⏳", ctx.Ses.State.User.ID)
+}
+
 // Report an error
 func sendError(ctx *exrouter.Context, err error) error {
 	ctx.Reply("🛑 ", err)
