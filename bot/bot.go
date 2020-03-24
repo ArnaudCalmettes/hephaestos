@@ -61,20 +61,20 @@ func Run() {
 
 	router.On("players", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
 		r.Use(dbMiddleware(db))
-		r.On("list", listPlayers).Desc("list known players (aliases: [ls])").Alias("ls")
+		r.On("list", listPlayers).Desc("list known players (alias: ls)").Alias("ls")
 		r.On("rename", renamePlayer).Desc("rename a player")
 		r.On("bind", bindPlayer).Desc("bind a player to a Discord user")
-		r.On("remove", removePlayer).Desc("delete a player (aliases: [rm])").Alias("rm")
-	}).Desc("handle players of the guild (aliases: [player p])").Alias("player", "p")
+		r.On("remove", removePlayer).Desc("delete a player (alias: rm)").Alias("rm")
+	}).Desc("handle players of the guild (alias: p)").Alias("p")
 
 	router.On("champions", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
 		r.Use(dbMiddleware(db))
-		r.On("list", listChampions).Desc("list current champions (aliases: [ls])").Alias("ls")
+		r.On("list", listChampions).Desc("list current champions (alias: ls)").Alias("ls")
 		r.On("export", exportChampions).Desc("export champions to a csv file")
-		r.On("read", readChampions).Desc("read & update champions from screenshots (aliases: [update])").Alias("update")
+		r.On("update", readChampions).Desc("read & update champions from screenshots (alias: up)").Alias("up")
 		r.On("set", setChampion).Desc("manually set a champion")
-		r.On("remove", removeChampion).Desc("remove a champion (aliases: [rm])").Alias("rm")
-	}).Desc("handle champions (aliases: [champion champs champ c])").Alias("champion", "champs", "champ", "c")
+		r.On("remove", removeChampion).Desc("remove a champion (alias: rm)").Alias("rm")
+	}).Desc("handle champions (alias: c)").Alias("c")
 
 	router.Default = router.On("help", func(ctx *exrouter.Context) {
 		var f func(depth int, r *exrouter.Route) string
