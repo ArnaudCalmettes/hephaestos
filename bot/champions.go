@@ -159,8 +159,9 @@ func readChampions(ctx *exrouter.Context) {
 		if err != nil {
 			return internalError(ctx, err)
 		}
-		create := make([]string, 0, 20)
-		update := make([]string, 0, 20)
+		create := make([]models.Champion, 0, 20)
+		update := make([]models.ChampionDiff, 0, 20)
+		uptodate := make([]string, 0, 20)
 
 		// Decide whether each detected champion should be created or updated
 		for _, c := range champs {
@@ -181,19 +182,25 @@ func readChampions(ctx *exrouter.Context) {
 					if err := c.Create(tx); err != nil {
 						return internalError(ctx, err)
 					}
-					create = append(create, p.Name)
+					c.Player.Name = p.Name
+					create = append(create, c)
 				} else {
 					// Yep, check that this update isn't suspicious
-					if !tmp.UpdateSeemsLegit(&c) {
+					diff := tmp.Diff(&c)
+					if !diff.SeemsLegit() {
 						// If anything's fishy, instruct the user to perform a
 						// manual update.
 						sendWarning(ctx,
-							fmt.Sprintf("Suspicious update:\n`%v -> %v`\n", tmp, c),
+							fmt.Sprintf("Suspicious update for **%s**: `%s`\n", diff.Name, diff),
 							fmt.Sprintf(
 								"Use `c set \"%s\" %d %d %d` to do it manually",
 								tmp.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans,
 							),
 						)
+						continue
+					}
+					if diff.IsNull() {
+						uptodate = append(uptodate, diff.Name)
 						continue
 					}
 
@@ -202,12 +209,12 @@ func readChampions(ctx *exrouter.Context) {
 					tmp.TitanPower = c.TitanPower
 					tmp.SuperTitans = c.SuperTitans
 
-					log.Println("Updating existing champion: ", tmp)
+					log.Printf("Updating %s (%s)", diff.Name, diff)
 
 					if err := tmp.Update(tx); err != nil {
 						return internalError(ctx, err)
 					}
-					update = append(update, p.Name)
+					update = append(update, diff)
 				}
 			} else {
 				// The player doesn't exist yet: associate him to the guild.
@@ -216,19 +223,26 @@ func readChampions(ctx *exrouter.Context) {
 				if err := c.Create(tx); err != nil {
 					return internalError(ctx, err)
 				}
-				create = append(create, c.Player.Name)
+				create = append(create, c)
 			}
 		}
 
 		if len(create) > 0 {
-			sendInfo(ctx, "Created ", len(create), " champions:\n* ",
-				strings.Join(create, "\n* "),
-			)
+			var b strings.Builder
+			for _, c := range create {
+				fmt.Fprintf(&b, "\n%s (`%s`)", c.Player.Name, c)
+			}
+			sendInfo(ctx, "Created ", len(create), " champion(s).", b.String())
 		}
 		if len(update) > 0 {
-			sendInfo(ctx, "Updated ", len(update), " champions:\n* ",
-				strings.Join(update, "\n* "),
-			)
+			var b strings.Builder
+			for _, d := range update {
+				fmt.Fprintf(&b, "\n%s (`%s`)", d.Name, d)
+			}
+			sendInfo(ctx, "Updated ", len(update), " champion(s).", b.String())
+		}
+		if len(uptodate) > 0 {
+			sendInfo(ctx, len(uptodate), " champion(s) already up to date: ", strings.Join(uptodate, ", "), ".")
 		}
 		return nil
 	})

@@ -19,7 +19,7 @@ type Champion struct {
 }
 
 func (c Champion) String() string {
-	return fmt.Sprintf("%s (Heroes:%d, Titans:%d, ST:%d)", c.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans)
+	return fmt.Sprintf("Heroes:%d, Titans:%d, ST:%d", c.HeroPower, c.TitanPower, c.SuperTitans)
 }
 
 // Create creates a new champion in the DB
@@ -72,7 +72,37 @@ func FindChampion(db *gorm.DB, guildID string, playerID uint) (Champion, error) 
 	return c, err
 }
 
-// UpdateSeemsLegit checks that the an update wouldn't make the champion weaker
-func (cOld *Champion) UpdateSeemsLegit(cNew *Champion) bool {
-	return cOld.HeroPower <= cNew.HeroPower && cOld.TitanPower <= cNew.TitanPower && cOld.SuperTitans <= cNew.SuperTitans
+// Diff computes a diff to qualify a possible champion update.
+func (c *Champion) Diff(cNew *Champion) ChampionDiff {
+	return ChampionDiff{
+		c.Player.Name,
+		cNew.HeroPower - c.HeroPower,
+		cNew.TitanPower - c.TitanPower,
+		cNew.SuperTitans - c.SuperTitans,
+	}
+}
+
+// ChampionDiff represents a difference between two versions of a champion.
+type ChampionDiff struct {
+	Name        string
+	HeroPower   int
+	TitanPower  int
+	SuperTitans int
+}
+
+// IsNull returns true if the diff is null
+func (c ChampionDiff) IsNull() bool {
+	return c.HeroPower == 0 && c.TitanPower == 0 && c.SuperTitans == 0
+}
+
+// SeemsLegit returs true if the update is an actual improvement
+func (c ChampionDiff) SeemsLegit() bool {
+	return c.HeroPower >= 0 && c.TitanPower >= 0 && c.SuperTitans >= 0
+}
+
+func (c ChampionDiff) String() string {
+	return fmt.Sprintf(
+		"Heroes: %+d, Titans: %+d, ST: %+d",
+		c.HeroPower, c.TitanPower, c.SuperTitans,
+	)
 }
