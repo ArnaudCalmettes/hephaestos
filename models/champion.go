@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jinzhu/gorm"
 )
@@ -101,8 +102,15 @@ func (c ChampionDiff) SeemsLegit() bool {
 }
 
 func (c ChampionDiff) String() string {
-	return fmt.Sprintf(
-		"Heroes: %+d, Titans: %+d, ST: %+d",
-		c.HeroPower, c.TitanPower, c.SuperTitans,
-	)
+	updates := make([]string, 0, 3)
+	if c.HeroPower != 0 {
+		updates = append(updates, fmt.Sprintf("Heroes: %+d", c.HeroPower))
+	}
+	if c.TitanPower != 0 {
+		updates = append(updates, fmt.Sprintf("Titans: %+d", c.TitanPower))
+	}
+	if c.SuperTitans != 0 {
+		updates = append(updates, fmt.Sprintf("ST: %+d", c.SuperTitans))
+	}
+	return strings.Join(updates, ", ")
 }

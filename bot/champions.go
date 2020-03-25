@@ -191,7 +191,7 @@ func readChampions(ctx *exrouter.Context) {
 						// If anything's fishy, instruct the user to perform a
 						// manual update.
 						sendWarning(ctx,
-							fmt.Sprintf("Suspicious update for **%s**: `%s`\n", diff.Name, diff),
+							fmt.Sprintf("Suspicious update for **%s** (`%s`)\n", diff.Name, diff),
 							fmt.Sprintf(
 								"Use `c set \"%s\" %d %d %d` to do it manually",
 								tmp.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans,
