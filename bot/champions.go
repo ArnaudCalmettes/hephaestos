@@ -25,32 +25,34 @@ var errInvalidArgs = errors.New("Invalid arguments")
 var errEmptyResult = errors.New("Nothing to get")
 
 // Utility function to get the list of champions
-func getChampions(ctx *exrouter.Context) (champs []models.Champion, err error) {
+func getChampions(ctx *exrouter.Context) ([]models.Champion, error) {
 	order := "by_titans"
 	if len(ctx.Args) == 2 {
 		order = ctx.Args[1]
 		if order != "by_titans" && order != "by_heroes" {
 			sendUsage(ctx, "[by_heroes|by_titans]")
-			err = errInvalidArgs
-			return
+			return nil, errInvalidArgs
 		}
 	} else if len(ctx.Args) > 2 {
 		sendUsage(ctx, "[by_heroes|by_titans]")
-		return
+		return nil, errInvalidArgs
 	}
 
-	err = transaction(ctx, func(tx *gorm.DB) error {
+	champs := make([]models.Champion, 0, 20)
+	err := transaction(ctx, func(tx *gorm.DB) error {
 		err := tx.Set("gorm:auto_preload", true).Where("guild_id = ?", ctx.Msg.GuildID).Find(&champs).Error
 		if err != nil {
 			internalError(ctx, err)
 		}
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if len(champs) == 0 {
 		sendWarning(ctx, "The guild doesn't have any champions yet. Use `champions read` to set them.")
-		err = errEmptyResult
-		return
+		return nil, errEmptyResult
 	}
 
 	switch order {
@@ -59,7 +61,7 @@ func getChampions(ctx *exrouter.Context) (champs []models.Champion, err error) {
 	case "by_heroes":
 		sort.Sort(sort.Reverse(models.ByHeroPower(champs)))
 	}
-	return
+	return champs, nil
 }
 
 // List currently recorded champions
