@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -13,52 +12,6 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/spf13/viper"
 )
-
-// Log a received message event to standard output
-func logMsg(s *discordgo.Session, m *discordgo.MessageCreate) {
-	guild, _ := s.Guild(m.GuildID)
-	channel, _ := s.Channel(m.ChannelID)
-	log.Printf("[%s/%s] %s: %s\n", guild.Name, channel.Name, m.Author.Username, m.Message.Content)
-}
-
-// Middleware that logs processed messages to stdout
-func logMiddleware(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
-	return func(ctx *exrouter.Context) {
-		guild, _ := ctx.Guild(ctx.Msg.GuildID)
-		channel, _ := ctx.Channel(ctx.Msg.ChannelID)
-		log.Printf("[%s/%s] %s: %s\n", guild.Name, channel.Name, ctx.Msg.Author.Username, ctx.Msg.Content)
-
-		if fn != nil {
-			fn(ctx)
-		}
-	}
-}
-
-// Middleware that adds the database to commands' context.
-func dbMiddleware(db *gorm.DB) exrouter.MiddlewareFunc {
-	return func(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
-		return func(ctx *exrouter.Context) {
-			ctx.Set("db", db)
-			if fn != nil {
-				fn(ctx)
-			}
-		}
-	}
-}
-
-// Middleware that ensures the Discord guild is associated to a guild in the DB
-func guildInitMiddleware(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
-	return func(ctx *exrouter.Context) {
-		// Initialize the guild in the DB if it doesn't exist yet
-		if err := createGuild(ctx); err != nil {
-			return
-		}
-
-		if fn != nil {
-			fn(ctx)
-		}
-	}
-}
 
 // Run runs the bot.
 func Run() {
