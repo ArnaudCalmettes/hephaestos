@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"log"
-	"sort"
 
 	"github.com/ArnaudCalmettes/hephaestos/imp"
 	"github.com/ArnaudCalmettes/hephaestos/models"
@@ -77,22 +76,9 @@ func init() {
 	}
 }
 
-// GuildChampionsScanner is used to extract champions from screenshots of the
-// guild's champions (for local wars in qualifier/bronze/silver/gold leagues).
-type GuildChampionsScanner struct {
-	champs map[string]models.Champion
-}
-
-// NewGuildChampionsScanner creates a new GuildChampionsScanner.
-func NewGuildChampionsScanner() *GuildChampionsScanner {
-	s := &GuildChampionsScanner{}
-	s.champs = make(map[string]models.Champion)
-	return s
-}
-
-// Scan scans an input image to extract local guild champions.
-// Returns the number of new champions that were found in this image.
-func (s *GuildChampionsScanner) Scan(input image.Image) (int, error) {
+// ExtractChampions scans an image for champion information and extracts it.
+func ExtractChampions(input image.Image) ([]models.Champion, error) {
+	champs := make([]models.Champion, 0, 3)
 
 	// Detect the frame within the screenshot, isolate and resize it to the
 	// reference size (this usually results in HD screenshots being downsampled).
@@ -103,6 +89,7 @@ func (s *GuildChampionsScanner) Scan(input image.Image) (int, error) {
 
 	found := 0
 
+SCAN_LOOP:
 	// Find ticked checkboxes, and extract champions based on them.
 	for _, p := range findCheckmarks(frame) {
 
@@ -116,15 +103,23 @@ func (s *GuildChampionsScanner) Scan(input image.Image) (int, error) {
 		)
 		if err != nil {
 			// An error in here means something really wrong has happenned.
-			return 0, err
-		}
-
-		// Avoid duplicating existing champions
-		c, ok := s.champs[name]
-		if name == "" || ok {
+			return champs, err
+		} else if name == "" {
 			continue
 		}
-		c.Player.Name = name
+
+		// Make sure the champion wasn't already detected
+		for _, c := range champs {
+			if c.Player.Name == name {
+				continue SCAN_LOOP
+			}
+		}
+
+		c := models.Champion{
+			Player: models.Player{
+				Name: name,
+			},
+		}
 
 		// Find the champions' hero power
 		c.HeroPower, err = getPower(
@@ -163,19 +158,9 @@ func (s *GuildChampionsScanner) Scan(input image.Image) (int, error) {
 		)
 
 		// All went well up to this point, keep the extracted data
-		s.champs[c.Player.Name] = c
+		champs = append(champs, c)
 	}
-	return found, nil
-}
-
-// Champions returns a sorted list of local guild champions
-func (s GuildChampionsScanner) Champions() []models.Champion {
-	res := make([]models.Champion, 0, len(s.champs))
-	for _, c := range s.champs {
-		res = append(res, c)
-	}
-	sort.Sort(sort.Reverse(models.ByTitanPower(res)))
-	return res
+	return champs, nil
 }
 
 func findChampionsFrame(img image.Image) image.Rectangle {

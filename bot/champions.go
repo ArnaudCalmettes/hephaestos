@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/ArnaudCalmettes/hephaestos/imp"
@@ -124,31 +125,65 @@ func findClosestPlayer(name string, players []models.Player) (best models.Player
 	return
 }
 
-func readChampions(ctx *exrouter.Context) {
+// scanChampions fetches images from the message, scans them and extract
+// champion information
+func scanChampions(ctx *exrouter.Context) []models.Champion {
+	var wg sync.WaitGroup
+	champStream := make(chan models.Champion)
 
-	scanner := input.NewGuildChampionsScanner()
-	markInProgress(ctx)
+	// Scan all images in parallel
 	for _, att := range ctx.Msg.Attachments {
-		log.Println("Downloading attachment", att.URL)
-		resp, err := http.Get(att.URL)
-		if err != nil {
-			sendWarning(ctx, fmt.Sprintf("Couldn't download <%s>: `%s`\n", att.URL, err))
-			continue
-		}
-		defer resp.Body.Close()
+		wg.Add(1)
+		url := att.URL
 
-		img, err := imp.Read(resp.Body)
-		if err != nil {
-			sendWarning(ctx, fmt.Sprintf("Couldn't open <%s>: `%s`\n", att.URL, err))
-			continue
-		}
+		go func() {
+			defer wg.Done()
 
-		if _, err := scanner.Scan(img); err != nil {
-			sendWarning(ctx, fmt.Sprintf("While scanning <%s>: `%s`\n", att.URL, err))
+			log.Println("Downloading attachment", url)
+			resp, err := http.Get(url)
+			if err != nil {
+				sendWarning(ctx, fmt.Sprintf("Couldn't download <%s>: `%s`\n", url, err))
+				return
+			}
+			defer resp.Body.Close()
+
+			img, err := imp.Read(resp.Body)
+			if err != nil {
+				sendWarning(ctx, fmt.Sprintf("Couldn't open <%s>: `%s`\n", url, err))
+				return
+			}
+
+			champs, err := input.ExtractChampions(img)
+			if err != nil {
+				sendWarning(ctx, fmt.Sprintf("While scanning <%s>: `%s`\n", url, err))
+			}
+
+			for _, c := range champs {
+				champStream <- c
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(champStream)
+	}()
+
+	champs := make([]models.Champion, 0, 20)
+	seen := make(map[string]bool)
+	for c := range champStream {
+		if !seen[c.Player.Name] {
+			seen[c.Player.Name] = true
+			champs = append(champs, c)
 		}
 	}
+	return champs
+}
 
-	champs := scanner.Champions()
+func readChampions(ctx *exrouter.Context) {
+
+	markInProgress(ctx)
+
+	champs := scanChampions(ctx)
 	if len(champs) == 0 {
 		markDone(ctx)
 		markPoop(ctx)
@@ -174,7 +209,6 @@ func readChampions(ctx *exrouter.Context) {
 			// log.Printf("Closest to %v is %v (%d) (score = %d)", c.Player.Name, p.Name, p.ID, score)
 			if score < len(p.Name) {
 				// The champion is more likely a known player
-
 				// Is he already a champion?
 				tmp, err := models.FindChampion(tx, guild.ID, p.ID)
 				if err != nil {
