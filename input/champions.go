@@ -215,10 +215,34 @@ func findChampionsFrame(img image.Image) image.Rectangle {
 	return frame
 }
 
+// Returns true if both points belong are within the same rectangular region
+func sameRegion(a, b lookup.GPoint, w, h int) bool {
+	return a.X > b.X-w && a.X < b.X+w && a.Y > b.Y-h && a.Y < b.Y+h
+}
+
+// Remove duplicate matches
+func pruneMatches(m []lookup.GPoint, r image.Rectangle) []lookup.GPoint {
+	res := make([]lookup.GPoint, 0, len(m))
+	w, h := r.Size().X, r.Size().Y
+LOOP_MATCHES:
+	for _, match := range m {
+		for idx, best := range res {
+			if sameRegion(match, best, w, h) {
+				if match.G > best.G {
+					res[idx] = match
+				}
+				continue LOOP_MATCHES
+			}
+		}
+		res = append(res, match)
+	}
+	return res
+}
+
 func findCheckmarks(frame image.Image) []lookup.GPoint {
 	lkp := lookup.NewLookup(frame)
 	matches, _ := lkp.FindAllInRect(checkmarkTemplate, checkboxROI, 0.9)
-	return matches
+	return pruneMatches(matches, checkmarkTemplate.Bounds())
 }
 
 func findSuperTitans(frame image.Image, roi image.Rectangle) int {
