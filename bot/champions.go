@@ -80,17 +80,18 @@ func listChampions(ctx *exrouter.Context) {
 	var b strings.Builder
 	var inWar int
 	w := tabwriter.NewWriter(&b, 5, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tHEROES\tTITANS\tST\tIN WAR\t")
+	fmt.Fprintln(w, "NAME\tHEROES\tTITANS\tST\tIN WAR\tWANTS IN\t")
 	for _, c := range champs {
 		if c.InWar {
 			inWar++
 		}
-		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%s\n",
+		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%s\t%s\n",
 			c.Player.Name,
 			c.HeroPower,
 			c.TitanPower,
 			c.SuperTitans,
 			boolToEmoji(c.InWar),
+			boolToEmoji(c.InRotation),
 		)
 	}
 	w.Flush()

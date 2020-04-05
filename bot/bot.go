@@ -60,6 +60,13 @@ func Run() {
 		r.On("export", exportWarChampions).Desc("export war champions to a csv file")
 	}).Desc("handle wars (alias: w)").Alias("w")
 
+	router.On("rotation", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
+		r.Use(guildInitMiddleware)
+		r.Use(dbMiddleware(db))
+		r.Use(logMiddleware)
+		r.On("set", setInRotation).Desc("add or remove champions from the rotation")
+	}).Desc("handle rotations (alias: r)").Alias("r")
+
 	router.Default = router.On("help", func(ctx *exrouter.Context) {
 		var f func(depth int, r *exrouter.Route) string
 		f = func(depth int, r *exrouter.Route) string {

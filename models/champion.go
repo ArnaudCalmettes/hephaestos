@@ -46,6 +46,10 @@ func SetChampion(db *gorm.DB, player Player, inWar bool) error {
 	return db.Table("champions").Where("player_id = ?", player.ID).Update("in_war", inWar).Error
 }
 
+func SetInRotation(db *gorm.DB, player Player, inRotation bool) error {
+	return db.Table("champions").Where("player_id = ?", player.ID).Update("in_rotation", inRotation).Error
+}
+
 // Delete deletes current champion from the DB
 func (c *Champion) Delete(db *gorm.DB) error {
 	return db.Where("player_id = ?", c.PlayerID).Delete(*c).Error
