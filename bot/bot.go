@@ -44,12 +44,21 @@ func Run() {
 		r.Use(guildInitMiddleware)
 		r.Use(dbMiddleware(db))
 		r.Use(logMiddleware)
-		r.On("list", listChampions).Desc("list current champions (alias: ls)").Alias("ls")
+		r.On("list", listChampions).Desc("list champions (alias: ls)").Alias("ls")
 		r.On("export", exportChampions).Desc("export champions to a csv file")
 		r.On("update", readChampions).Desc("read & update champions from screenshots (alias: up)").Alias("up")
 		r.On("set", setChampion).Desc("manually set a champion")
 		r.On("remove", removeChampion).Desc("remove a champion (alias: rm)").Alias("rm")
 	}).Desc("handle champions (alias: c)").Alias("c")
+
+	router.On("war", func(*exrouter.Context) {}).Group(func(r *exrouter.Route) {
+		r.Use(guildInitMiddleware)
+		r.Use(dbMiddleware(db))
+		r.Use(logMiddleware)
+		r.On("set", setInWar).Desc("add or remove champions from war")
+		r.On("list", listWarChampions).Desc("list war champions (alias: ls)").Alias("ls")
+		r.On("export", exportWarChampions).Desc("export war champions to a csv file")
+	}).Desc("handle wars (alias: w)").Alias("w")
 
 	router.Default = router.On("help", func(ctx *exrouter.Context) {
 		var f func(depth int, r *exrouter.Route) string

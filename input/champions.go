@@ -1,9 +1,10 @@
 package input
 
 import (
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
-	"log"
 
 	"github.com/ArnaudCalmettes/hephaestos/imp"
 	"github.com/ArnaudCalmettes/hephaestos/models"
@@ -45,16 +46,17 @@ var (
 	checkboxROI = image.Rectangle{
 		Min: image.Point{
 			X: 815,
-			Y: 150,
+			Y: 160,
 		},
 		Max: image.Point{
 			X: 845,
-			Y: 470,
+			Y: 460,
 		},
 	}
 
 	// Image templates to be detected using normalized cross-correlation
 	checkmarkTemplate image.Image
+	uncheckedTemplate image.Image
 	arajiTemplate     image.Image
 	edenTemplate      image.Image
 	hyperionTemplate  image.Image
@@ -63,6 +65,9 @@ var (
 func init() {
 	var err error
 	if checkmarkTemplate, err = imp.ReadAsset("data/checkmark.png"); err != nil {
+		panic(err)
+	}
+	if uncheckedTemplate, err = imp.ReadAsset("data/unchecked.png"); err != nil {
 		panic(err)
 	}
 	if arajiTemplate, err = imp.ReadAsset("data/st/araji.png"); err != nil {
@@ -87,80 +92,82 @@ func ExtractChampions(input image.Image) ([]models.Champion, error) {
 		frameWidth, frameHeight, imaging.Box,
 	)
 
-	found := 0
+	for _, checked := range []bool{true, false} {
+		// Find (un)ticked checkboxes, and extract champions based on them.
+		for _, p := range findCheckmarks(frame, checked) {
 
-SCAN_LOOP:
-	// Find ticked checkboxes, and extract champions based on them.
-	for _, p := range findCheckmarks(frame) {
-
-		// Extract the name
-		name, err := getText(
-			frame,
-			image.Rectangle{
-				Min: image.Point{X: nameXMin, Y: p.Y + nameYMinOffset},
-				Max: image.Point{X: nameXMax, Y: p.Y + nameYMaxOffset},
-			},
-		)
-		if err != nil {
-			// An error in here means something really wrong has happenned.
-			return champs, err
-		} else if name == "" {
-			continue
-		}
-
-		// Make sure the champion wasn't already detected
-		for _, c := range champs {
-			if c.Player.Name == name {
-				continue SCAN_LOOP
+			c, err := readChampion(frame, p)
+			if err != nil {
+				fmt.Println(err)
+				continue
 			}
+
+			c.InWar = checked
+
+			champs = append(champs, *c)
 		}
-
-		c := models.Champion{
-			Player: models.Player{
-				Name: name,
-			},
-		}
-
-		// Find the champions' hero power
-		c.HeroPower, err = getPower(
-			frame,
-			image.Rectangle{
-				Min: image.Point{X: heroPowerXMin, Y: p.Y + powerYMinOffset},
-				Max: image.Point{X: heroPowerXMax, Y: p.Y + powerYMaxOffset},
-			},
-		)
-		if err != nil || c.HeroPower < 1000 {
-			log.Println(err)
-			continue
-		}
-
-		// Find the champions' titan power
-		c.TitanPower, err = getPower(
-			frame,
-			image.Rectangle{
-				Min: image.Point{X: titanPowerXMin, Y: p.Y + powerYMinOffset},
-				Max: image.Point{X: titanPowerXMax, Y: p.Y + powerYMaxOffset},
-			},
-		)
-		if err != nil || c.TitanPower < 1000 {
-			log.Println(err)
-			continue
-		}
-		found++
-
-		// Count the number of super titans
-		c.SuperTitans = findSuperTitans(
-			frame,
-			image.Rectangle{
-				Min: image.Point{X: titanIconsXMin, Y: p.Y + titanIconsYMinOffset},
-				Max: image.Point{X: titanIconsXMax, Y: p.Y + titanIconsYMaxOffset},
-			},
-		)
-
-		// All went well up to this point, keep the extracted data
-		champs = append(champs, c)
 	}
 	return champs, nil
+}
+
+func readChampion(frame image.Image, p lookup.GPoint) (*models.Champion, error) {
+	var err error
+	c := &models.Champion{}
+
+	// Extract the name
+	c.Player.Name, err = getText(
+		frame,
+		image.Rectangle{
+			Min: image.Point{X: nameXMin, Y: p.Y + nameYMinOffset},
+			Max: image.Point{X: nameXMax, Y: p.Y + nameYMaxOffset},
+		},
+	)
+	if err != nil {
+		return c, err
+	} else if c.Player.Name == "" {
+		return c, errors.New("Couldn't read name")
+	}
+
+	// Find the champions' hero power
+	c.HeroPower, err = getPower(
+		frame,
+		image.Rectangle{
+			Min: image.Point{X: heroPowerXMin, Y: p.Y + powerYMinOffset},
+			Max: image.Point{X: heroPowerXMax, Y: p.Y + powerYMaxOffset},
+		},
+	)
+
+	if err != nil {
+		return c, err
+	} else if c.HeroPower < 1000 {
+		return c, errors.New("Hero power below 1000")
+	}
+
+	// Find the champions' titan power
+	c.TitanPower, err = getPower(
+		frame,
+		image.Rectangle{
+			Min: image.Point{X: titanPowerXMin, Y: p.Y + powerYMinOffset},
+			Max: image.Point{X: titanPowerXMax, Y: p.Y + powerYMaxOffset},
+		},
+	)
+
+	if err != nil {
+		return c, err
+	} else if c.TitanPower < 1000 {
+		return c, errors.New("Titan power below 1000")
+	}
+
+	// Count the number of super titans
+	c.SuperTitans = findSuperTitans(
+		frame,
+		image.Rectangle{
+			Min: image.Point{X: titanIconsXMin, Y: p.Y + titanIconsYMinOffset},
+			Max: image.Point{X: titanIconsXMax, Y: p.Y + titanIconsYMaxOffset},
+		},
+	)
+
+	return c, nil
 }
 
 func findChampionsFrame(img image.Image) image.Rectangle {
@@ -224,9 +231,14 @@ LOOP_MATCHES:
 	return res
 }
 
-func findCheckmarks(frame image.Image) []lookup.GPoint {
+func findCheckmarks(frame image.Image, checked bool) []lookup.GPoint {
 	lkp := lookup.NewLookup(frame)
-	matches, _ := lkp.FindAllInRect(checkmarkTemplate, checkboxROI, 0.9)
+	var matches []lookup.GPoint
+	if checked {
+		matches, _ = lkp.FindAllInRect(checkmarkTemplate, checkboxROI, 0.9)
+	} else {
+		matches, _ = lkp.FindAllInRect(uncheckedTemplate, checkboxROI, 0.9)
+	}
 	return pruneMatches(matches, checkmarkTemplate.Bounds())
 }
 

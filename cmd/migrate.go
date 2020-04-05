@@ -15,16 +15,20 @@ var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "Perform automatic database migration",
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := gorm.Open("sqlite3", viper.GetString("db"))
-		if err != nil {
-			log.Fatal(err)
-		}
-		db.AutoMigrate(
-			&models.Guild{},
-			&models.Player{},
-			&models.Champion{},
-		)
+		migrateDB()
 	},
+}
+
+func migrateDB() {
+	db, err := gorm.Open("sqlite3", viper.GetString("db"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	db.AutoMigrate(
+		&models.Guild{},
+		&models.Player{},
+		&models.Champion{},
+	)
 }
 
 func init() {

@@ -17,6 +17,8 @@ type Champion struct {
 	HeroPower   int
 	TitanPower  int
 	SuperTitans int
+	InWar       bool
+	InRotation  bool
 }
 
 func (c Champion) String() string {
@@ -31,8 +33,17 @@ func (c *Champion) Create(db *gorm.DB) error {
 // Update updates a champion in the DB
 func (c *Champion) Update(db *gorm.DB) error {
 	c.Player = Player{}
-	c.Guild = Guild{}
-	return db.Table("champions").Where("player_id = ? AND guild_id = ?", c.PlayerID, c.GuildID).Updates(*c).Error
+	return db.Table("champions").Where("player_id = ?", c.PlayerID).Updates(
+		map[string]interface{}{
+			"hero_power":   c.HeroPower,
+			"titan_power":  c.TitanPower,
+			"super_titans": c.SuperTitans,
+			"in_war":       c.InWar,
+		}).Error
+}
+
+func SetChampion(db *gorm.DB, player Player, inWar bool) error {
+	return db.Table("champions").Where("player_id = ?", player.ID).Update("in_war", inWar).Error
 }
 
 // Delete deletes current champion from the DB
@@ -75,11 +86,18 @@ func FindChampion(db *gorm.DB, guildID string, playerID uint) (Champion, error) 
 
 // Diff computes a diff to qualify a possible champion update.
 func (c *Champion) Diff(cNew *Champion) ChampionDiff {
+	inWar := 0
+	if !c.InWar && cNew.InWar {
+		inWar = 1
+	} else if c.InWar && !cNew.InWar {
+		inWar = -1
+	}
 	return ChampionDiff{
 		c.Player.Name,
 		cNew.HeroPower - c.HeroPower,
 		cNew.TitanPower - c.TitanPower,
 		cNew.SuperTitans - c.SuperTitans,
+		inWar,
 	}
 }
 
@@ -89,6 +107,7 @@ type ChampionDiff struct {
 	HeroPower   int
 	TitanPower  int
 	SuperTitans int
+	InWar       int
 }
 
 // IsNull returns true if the diff is null
@@ -111,6 +130,9 @@ func (c ChampionDiff) String() string {
 	}
 	if c.SuperTitans != 0 {
 		updates = append(updates, fmt.Sprintf("ST: %+d", c.SuperTitans))
+	}
+	if c.InWar != 0 {
+		updates = append(updates, fmt.Sprintf("In war: %+d", c.InWar))
 	}
 	return strings.Join(updates, ", ")
 }

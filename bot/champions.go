@@ -18,12 +18,17 @@ import (
 	"github.com/ArnaudCalmettes/hephaestos/models"
 	"github.com/Necroforger/dgrouter/exrouter"
 	"github.com/jinzhu/gorm"
-
-	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
 var errInvalidArgs = errors.New("Invalid arguments")
 var errEmptyResult = errors.New("Nothing to get")
+
+func boolToEmoji(v bool) string {
+	if v {
+		return "X"
+	}
+	return ""
+}
 
 // Utility function to get the list of champions
 func getChampions(ctx *exrouter.Context) ([]models.Champion, error) {
@@ -73,16 +78,26 @@ func listChampions(ctx *exrouter.Context) {
 	}
 
 	var b strings.Builder
+	var inWar int
 	w := tabwriter.NewWriter(&b, 5, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tHEROES\tTITANS\tST\t")
+	fmt.Fprintln(w, "NAME\tHEROES\tTITANS\tST\tIN WAR\t")
 	for _, c := range champs {
-		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t\n", c.Player.Name, c.HeroPower, c.TitanPower, c.SuperTitans)
+		if c.InWar {
+			inWar++
+		}
+		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%s\n",
+			c.Player.Name,
+			c.HeroPower,
+			c.TitanPower,
+			c.SuperTitans,
+			boolToEmoji(c.InWar),
+		)
 	}
 	w.Flush()
 	ctx.Reply("```" + b.String() + "```")
 
-	if len(champs) != 15 && len(champs) != 20 {
-		sendWarning(ctx, "There are currently ", len(champs), " champions (not 15 or 20).")
+	if inWar != 15 && inWar != 20 {
+		sendWarning(ctx, "There are currently ", inWar, " champions in war (not 15 or 20).")
 	}
 }
 
@@ -95,13 +110,14 @@ func exportChampions(ctx *exrouter.Context) {
 
 	var b bytes.Buffer
 	w := csv.NewWriter(&b)
-	w.Write([]string{"Name", "Heroes", "Titans", "ST"})
+	w.Write([]string{"Name", "Heroes", "Titans", "ST", "In war"})
 	for _, c := range champs {
 		w.Write([]string{
 			c.Player.Name,
 			strconv.Itoa(c.HeroPower),
 			strconv.Itoa(c.TitanPower),
 			strconv.Itoa(c.SuperTitans),
+			fmt.Sprintf("%t", c.InWar),
 		})
 	}
 	w.Flush()
@@ -111,18 +127,6 @@ func exportChampions(ctx *exrouter.Context) {
 		fmt.Sprintf("%s champions.csv", champs[0].Guild.Name),
 		&b,
 	)
-}
-
-func findClosestPlayer(name string, players []models.Player) (best models.Player, score int) {
-	score = len(name)
-	for _, p := range players {
-		d := levenshtein.DistanceForStrings([]rune(name), []rune(p.Name), levenshtein.DefaultOptions)
-		if d < score {
-			best = p
-			score = d
-		}
-	}
-	return
 }
 
 // scanChampions fetches images from the message, scans them and extract
@@ -244,6 +248,7 @@ func readChampions(ctx *exrouter.Context) {
 					tmp.HeroPower = c.HeroPower
 					tmp.TitanPower = c.TitanPower
 					tmp.SuperTitans = c.SuperTitans
+					tmp.InWar = c.InWar
 
 					log.Printf("Updating %s (%s)", diff.Name, diff)
 

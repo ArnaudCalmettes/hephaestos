@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ArnaudCalmettes/hephaestos/models"
 	"github.com/Necroforger/dgrouter/exrouter"
 	"github.com/jinzhu/gorm"
+	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
 var errNoDB = errors.New("couldn't get DB from context")
@@ -73,4 +75,16 @@ func transaction(ctx *exrouter.Context, fn func(*gorm.DB) error) error {
 		return err
 	}
 	return db.Transaction(fn)
+}
+
+func findClosestPlayer(name string, players []models.Player) (best models.Player, score int) {
+	score = len(name)
+	for _, p := range players {
+		d := levenshtein.DistanceForStrings([]rune(name), []rune(p.Name), levenshtein.DefaultOptions)
+		if d < score {
+			best = p
+			score = d
+		}
+	}
+	return
 }
