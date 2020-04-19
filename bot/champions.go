@@ -357,8 +357,15 @@ func setChampion(ctx *exrouter.Context) {
 	err = transaction(ctx, func(tx *gorm.DB) error {
 		p, err := models.FindPlayer(tx, ctx.Msg.GuildID, name)
 		if err == gorm.ErrRecordNotFound {
-			markPoop(ctx)
-			return sendError(ctx, fmt.Errorf("No such player (%v)", name))
+			// Create new player
+			update.Player.Name = name
+			update.Player.GuildID = ctx.Msg.GuildID
+			log.Println("Creating new champion: ", update)
+			if err := update.Create(tx); err != nil {
+				return internalError(ctx, err)
+			}
+			sendInfo(ctx, fmt.Sprintf("Created new player: `%s`", update))
+			return nil
 		}
 		if err != nil {
 			return internalError(ctx, err)
